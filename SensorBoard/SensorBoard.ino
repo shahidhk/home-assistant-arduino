@@ -31,6 +31,7 @@ RF24Network network(radio);
 RF24Mesh mesh(radio,network);
 RF24EthernetClass RF24Ethernet(radio,network);
 
+boolean pir = false;
 
 EthernetClient client;
 
@@ -99,6 +100,8 @@ if(size = client.available() > 0){
   }
   // We can do other things in the loop, but be aware that the loop will
   // briefly pause while IP data is being processed.
+  
+  // ADD CODE HERE
 }
 
 void connect(){
@@ -110,7 +113,10 @@ void connect(){
       Serial.println(F("connected"));
       
       // Make an HTTP request:
-      client.write("GET /status/pirsensor HTTP/1.1\n");
+      if(pir)
+        client.write("GET /status/1 HTTP/1.1\n");
+      else
+        client.write("GET /status/0 HTTP/1.1\n");
       //client.write("GET / HTTP/1.1\n");
       
       client.write("Host: 192.168.2.2:8080\n");
