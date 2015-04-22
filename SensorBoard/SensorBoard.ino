@@ -25,13 +25,23 @@
   #include <EEPROM.h>
 #endif
 
+#include <Servo.h>
+
 /*** Configure the radio CE & CS pins ***/
 RF24 radio(7,8);
 RF24Network network(radio);
 RF24Mesh mesh(radio,network);
 RF24EthernetClass RF24Ethernet(radio,network);
 
-boolean pir = false;
+boolean Z1detected = false;
+boolean Z2detected = false;
+
+
+
+int pirPin =6;
+
+Servo arm;
+Servo base;
 
 EthernetClient client;
 
@@ -41,6 +51,7 @@ void setup() {
  // printf_begin();
   Serial.println("Start");
   
+  pinMode(pirPin, INPUT);
   // This step is very important. The address of the node needs to be set both
   // on the radio and in the UIP layer
   // This is the RF24Network address and needs to be configured accordingly if
@@ -57,6 +68,10 @@ void setup() {
   // the world, you'll need a gateway set up.
   IPAddress gwIP(192,168,2,2);
   Ethernet.set_gateway(gwIP);  
+  
+  // Initialise servos
+  arm.attach(4);
+  base.attach(5);
 }
 
 uint32_t counter = 0;
@@ -91,8 +106,28 @@ if(size = client.available() > 0){
     Serial.println();
     Serial.println(F("Disconnect. Waiting for disconnect timeout"));
     client.stop();
-  
-    // Wait 5 seconds between requests
+    
+    // Need to add servo code for zone 1 and 2
+    
+    // ALGO: 
+    // GOTO Z1
+    // DONE - Read PIR with .5 sec delay for 10 times
+    // DONE - set Z1detect to true if PIR high >= 5 times
+    // DONE - set Z1detect to false if PIR high < 5 times
+    delay(1000); // For PIR to be stable
+    Z1detected = getPIR(10);
+    // DONE - Send data
+    
+    // GOTO Z2
+    // DONE - read PIR with .5 sec delay for 10 times
+    // DONE - set Z2detect to true if PIR high >= 5 times
+    // DONE - set Z2detect to false if PIR high < 5 times
+    delay(1000); 
+    Z2detected = getPIR(10);
+    // DONE - Send data
+    
+   
+    // Wait 5 seconds between requests, extra delay will be above
     reqTimer = millis();
     while(millis() - reqTimer < 5000 && !client.available() ){ }    
     connect();
@@ -100,8 +135,6 @@ if(size = client.available() > 0){
   }
   // We can do other things in the loop, but be aware that the loop will
   // briefly pause while IP data is being processed.
-  
-  // ADD CODE HERE
 }
 
 void connect(){
@@ -113,10 +146,14 @@ void connect(){
       Serial.println(F("connected"));
       
       // Make an HTTP request:
-      if(pir)
-        client.write("GET /status/1 HTTP/1.1\n");
-      else
-        client.write("GET /status/0 HTTP/1.1\n");
+      if(Z1detected && !Z2detected)
+        client.write("GET /status/1/0 HTTP/1.1\n");
+      else if (Z1detected && Z2detected)
+        client.write("GET /status/1/1 HTTP/1.1\n");
+      else if (!Z1detected && Z2detected)
+        client.write("GET /status/0/1 HTTP/1.1\n");
+      else if (!Z1detected && !Z2detected)
+        client.write("GET /status/0/0 HTTP/1.1\n");
       //client.write("GET / HTTP/1.1\n");
       
       client.write("Host: 192.168.2.2:8080\n");
@@ -130,3 +167,18 @@ void connect(){
     }
 }
 
+
+boolean getPIR(int times){
+  int highCount = 0;
+  for(int i = 0; i < times; i++){
+    if(digitalRead(pirPin)){
+      highCount++;
+      delay(500);
+    }
+  }
+  if(highCount >= 5){
+    return true;
+  } else {
+    return false;
+  }
+}
